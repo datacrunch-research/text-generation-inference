@@ -1,4 +1,5 @@
 import os
+import subprocess
 import sys
 import typer
 
@@ -38,6 +39,7 @@ def serve(
     logger_level: str = "INFO",
     json_output: bool = False,
     otlp_endpoint: Optional[str] = None,
+    checkpoint_ext: Optional[str] = ".safetensors",
 ):
     if sharded:
         assert (
@@ -52,7 +54,11 @@ def serve(
         assert (
             os.getenv("MASTER_PORT", None) is not None
         ), "MASTER_PORT must be set when sharded is True"
-
+        logger.info("Running in sharded mode")
+        logger.info(f"RANK: {os.getenv('RANK')}")
+        logger.info(f"WORLD_SIZE: {os.getenv('WORLD_SIZE')}")
+        logger.info(f"MASTER_ADDR: {os.getenv('MASTER_ADDR')}")
+        print(subprocess.run("printenv"))
     # Remove default handler
     logger.remove()
     logger.add(
@@ -81,7 +87,7 @@ def serve(
             "Only 1 can be set between `dtype` and `quantize`, as they both decide how goes the final model."
         )
     server.serve(
-        model_id, revision, sharded, quantize, dtype, trust_remote_code, uds_path
+        model_id, revision, sharded, quantize, dtype, trust_remote_code, uds_path, checkpoint_ext
     )
 
 

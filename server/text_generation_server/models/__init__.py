@@ -85,6 +85,7 @@ def get_model(
     quantize: Optional[str],
     dtype: Optional[str],
     trust_remote_code: bool,
+    checkpoint_ext: Optional[str] = ".safetensors"
 ) -> Model:
     if dtype is None:
         dtype = torch.float16
@@ -160,6 +161,7 @@ def get_model(
             quantize=quantize,
             dtype=dtype,
             trust_remote_code=trust_remote_code,
+            checkpoint_ext=checkpoint_ext
         )
     elif model_type == "mpt":
         return MPTSharded(

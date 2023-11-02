@@ -44,6 +44,7 @@ class BLOOMSharded(CausalLM):
         quantize: Optional[str] = None,
         dtype: Optional[torch.dtype] = None,
         trust_remote_code: bool = False,
+        checkpoint_ext: Optional[str] = ".safetensors"
     ):
         self.process_group, rank, world_size = initialize_torch_distributed()
         if torch.cuda.is_available():
@@ -72,9 +73,9 @@ class BLOOMSharded(CausalLM):
         config.quantize = quantize
 
         torch.distributed.barrier(group=self.process_group)
-        filenames = weight_files(model_id, revision=revision, extension=".safetensors")
+        filenames = weight_files(model_id, revision=revision, extension=checkpoint_ext)
         weights = Weights(
-            filenames, device=device, dtype=dtype, process_group=self.process_group, prefix="transformer",
+            filenames, device=device, dtype=dtype, process_group=self.process_group, prefix="transformer", checkpoint_ext=checkpoint_ext
         )
         if config.quantize == "gptq":
             weights._set_gptq_params(model_id)

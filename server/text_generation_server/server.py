@@ -135,6 +135,7 @@ def serve(
     dtype: Optional[str],
     trust_remote_code: bool,
     uds_path: Path,
+    checkpoint_ext: Optional[str] = ".safetensors"
 ):
     async def serve_inner(
         model_id: str,
@@ -143,6 +144,7 @@ def serve(
         quantize: Optional[str] = None,
         dtype: Optional[str] = None,
         trust_remote_code: bool = False,
+        checkpoint_ext: Optional[str] = ".safetensors"
     ):
         unix_socket_template = "unix://{}-{}"
         if sharded:
@@ -157,7 +159,7 @@ def serve(
 
         try:
             model = get_model(
-                model_id, revision, sharded, quantize, dtype, trust_remote_code
+                model_id, revision, sharded, quantize, dtype, trust_remote_code, checkpoint_ext
             )
         except Exception:
             logger.exception("Error when initializing model")
@@ -205,5 +207,5 @@ def serve(
             await server.stop(0)
 
     asyncio.run(
-        serve_inner(model_id, revision, sharded, quantize, dtype, trust_remote_code)
+        serve_inner(model_id, revision, sharded, quantize, dtype, trust_remote_code, checkpoint_ext)
     )

@@ -16,17 +16,21 @@ class Weights:
         dtype,
         process_group,
         aliases: Optional[Dict[str, List[str]]] = None,
-        prefix: Optional[str] = None
+        prefix: Optional[str] = None,
+        checkpoint_ext: Optional[str] = ".safetensors"
     ):
         routing = {}
         for filename in filenames:
-            with safe_open(filename, framework="pytorch") as f:
-                for k in f.keys():
-                    if k in routing:
-                        raise RuntimeError(
-                            f"Key {k} was found in multiple files: {filename} and {routing[k]}"
-                        )
-                    routing[k] = filename
+            if checkpoint_ext == ".safetensors":
+                with safe_open(filename, framework="pytorch") as f:
+                    for k in f.keys():
+                        if k in routing:
+                            raise RuntimeError(
+                                f"Key {k} was found in multiple files: {filename} and {routing[k]}"
+                            )
+                        routing[k] = filename
+            if checkpoint_ext in [".bin", ".ckpt"]:
+                pass
         if aliases is None:
             aliases = {}
         self.aliases = aliases
