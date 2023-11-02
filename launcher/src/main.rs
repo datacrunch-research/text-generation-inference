@@ -360,7 +360,7 @@ struct Args {
     ngrok_edge: Option<String>,
 
     /// Display a lot of information about your runtime environment
-    #[clap(long, short, action)]
+    #[clap(default_value = "true", long, short, action)]
     env: bool,
 }
 

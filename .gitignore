@@ -2,3 +2,6 @@
 target
 router/tokenizer.json
 *__pycache__*
+accelerate/
+bitsandbytes/
+pytorch/
