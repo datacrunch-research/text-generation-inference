@@ -24,7 +24,7 @@ else:
 logger_level: str = "DEBUG"
 # if dtype is None: dtype = torch.float16
 dtype: str = "float16"
-checkpoint_ext: str = ".safetensors"
+checkpoint_ext: str = ".bin"
 serve_args = f"serve {abs_fn} {sharded} --dtype {dtype} --logger-level {logger_level} --checkpoint-ext {checkpoint_ext}"
 command: str = f"python -m torch.distributed.run --nproc_per_node={num_shards} {cli_path}" + " " + serve_args
 print(command)

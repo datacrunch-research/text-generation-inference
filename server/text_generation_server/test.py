@@ -48,5 +48,16 @@ for shared_weights in shared:
 # For tensors to be contiguous
 loaded = {k: v.contiguous() for k, v in loaded.items()}
 # %%
-print(loaded["word_embeddings.weight"])
+for k, v in loaded.items():
+    print(k, v.shape)
 # %%
+# safetensors
+from safetensors import safe_open
+
+tensors = {}
+abs_fn = os.path.join("/home/antonio/text-generation-inference/server/text_generation_server/weights", model_name, "model.safetensors")
+with safe_open(abs_fn, framework="pt", device=0) as f:
+    for k in f.keys():
+        tensor_slice = f.get_slice("word_embeddings.weight")
+        vocab_size, hidden_dim = tensor_slice.shape
+        tensor = tensor_slice[:, :hidden_dim]

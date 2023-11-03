@@ -1,11 +1,22 @@
 import os
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
+from collections import defaultdict
 from safetensors import safe_open, SafetensorError
 import torch
 from loguru import logger
 from huggingface_hub import hf_hub_download
 import json
+
+def shared_pointers(tensors: Dict):
+    ptrs = defaultdict(list)
+    for k, v in tensors.items():
+        ptrs[v.data_ptr()].append(k)
+    failing = []
+    for ptr, names in ptrs.items():
+        if len(names) > 1:
+            failing.append(names)
+    return failing
 
 
 class Weights:
@@ -30,7 +41,15 @@ class Weights:
                             )
                         routing[k] = filename
             if checkpoint_ext in [".bin", ".ckpt"]:
-                pass
+                loaded = torch.load(filename, map_location="cpu")
+                if "state_dict" in loaded:
+                    loaded = loaded["state_dict"]
+                shared = shared_pointers(loaded)
+                for shared_weights in shared:
+                    for name in shared_weights[1:]:
+                        loaded.pop(name)
+                # For tensors to be contiguous
+                routing = {k: filename for k, v in loaded.items()}
         if aliases is None:
             aliases = {}
         self.aliases = aliases
@@ -40,10 +59,17 @@ class Weights:
         self.process_group = process_group
         self.prefix = prefix
         self._handles = {}
+        self.checkpoint_ext = checkpoint_ext
 
     def _get_handle(self, filename):
-        if filename not in self._handles:
+        if filename not in self._handles and self.checkpoint_ext == ".safetensors":
             f = safe_open(filename, framework="pytorch")
+            self._handles[filename] = f
+        if filename not in self._handles and self.checkpoint_ext in [".bin", ".ckpt"]:
+            f = torch.load(filename, map_location="cpu")
+            if "state_dict" in f:
+                f = f["state_dict"]
+            f = {k: v.contiguous() for k, v in f.items()}
             self._handles[filename] = f
 
         return self._handles[filename]
@@ -69,16 +95,16 @@ class Weights:
     def _get_slice(self, tensor_name: str):
         filename, tensor_name = self.get_filename(tensor_name)
         f = self._get_handle(filename)
-        slice_ = f.get_slice(tensor_name)
+        slice_ = f.get_slice(tensor_name) if self.checkpoint_ext == ".safetensors" else f[tensor_name]
         return slice_
 
     def get_shape(self, tensor_name: str):
-        return self._get_slice(tensor_name).get_shape()
+        return self._get_slice(tensor_name).get_shape() if self.checkpoint_ext == ".safetensors" else self._get_slice(tensor_name).shape
 
     def get_tensor(self, tensor_name: str, to_device=True):
         filename, tensor_name = self.get_filename(tensor_name)
         f = self._get_handle(filename)
-        tensor = f.get_tensor(tensor_name)
+        tensor = f.get_tensor(tensor_name) if self.checkpoint_ext == ".safetensors" else f[tensor_name]
         # Special case for gptq which shouldn't convert
         # u4 which are disguised as int32
         if tensor.dtype not in [torch.int32, torch.int64]:
@@ -90,11 +116,11 @@ class Weights:
     def get_partial_sharded(self, tensor_name: str, dim: int):
         filename, tensor_name = self.get_filename(tensor_name)
         f = self._get_handle(filename)
-        slice_ = f.get_slice(tensor_name)
+        slice_ = f.get_slice(tensor_name) if self.checkpoint_ext == ".safetensors" else f[tensor_name]
         world_size = self.process_group.size()
         rank = self.process_group.rank()
 
-        size = slice_.get_shape()[dim]
+        size = slice_.get_shape()[dim] if self.checkpoint_ext == ".safetensors" else slice_.shape[dim]
         block_size = size // world_size
         start = rank * block_size
         stop = (rank + 1) * block_size
@@ -115,9 +141,9 @@ class Weights:
     def get_sharded(self, tensor_name: str, dim: int):
         filename, tensor_name = self.get_filename(tensor_name)
         f = self._get_handle(filename)
-        slice_ = f.get_slice(tensor_name)
+        slice_ = f.get_slice(tensor_name) if self.checkpoint_ext == ".safetensors" else f[tensor_name]
         world_size = self.process_group.size()
-        size = slice_.get_shape()[dim]
+        size = slice_.get_shape()[dim] if self.checkpoint_ext == ".safetensors" else slice_.shape[dim]
         assert (
             size % world_size == 0
         ), f"The choosen size {size} is not compatible with sharding on {world_size} shards"
